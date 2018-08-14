@@ -1,0 +1,1593 @@
+---
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+Exploratory Data Analysis by Benjamin Fundelits
+========================================================
+
+
+```{r ,echo=FALSE, message=FALSE, warning=FALSE}
+rm(list = ls())
+```
+
+```{r ,echo=FALSE, message=FALSE, warning=FALSE, packages}
+# Load all of the packages that you end up using in your analysis in this code
+# chunk.
+
+# Notice that the parameter "echo" was set to FALSE for this code chunk. This
+# prevents the code from displaying in the knitted HTML output. You should set
+# echo=FALSE for all code chunks in your file, unless it makes sense for your
+# report to show the code that generated a particular plot.
+
+# The other parameters for "message" and "warning" should also be set to FALSE
+# for other code chunks once you have verified that each plot comes out as you
+# want it to. This will clean up the flow of your report.
+
+library(ggplot2)
+```
+
+```{r ,echo=FALSE, message=FALSE, warning=FALSE}
+library(dplyr)
+library(ggplot2)
+library(gridExtra)
+library(plyr)
+```
+
+```{r echo=FALSE, Load_the_Data}
+# Load the Data
+
+#setwd('C:/Users/Bogi/Desktop/Beni/Udacity_projects/EDA')
+setwd('C:/Users/Ben/Desktop/Udacity_projects/EDA')
+ld <- read.csv('prosperLoanData.csv')
+```
+
+
+
+
+# Univariate Plots Section
+
+
+
+#### Dimensions
+
+```{r ,echo=FALSE, message=FALSE, warning=FALSE, Univariate_Plots}
+dim(ld)
+```
+The Dataset consists of 81 variables with almost 114,000 observations
+
+#### Variable Names in Alphabetic Order
+```{r ,echo=FALSE, message=FALSE, warning=FALSE, Univariate_Plots2}
+alphabetic_names <- ld %>%
+  names %>%
+  sort()
+alphabetic_names
+rm(alphabetic_names)
+```
+
+
+#### Structure
+```{r ,echo=FALSE, message=FALSE, warning=FALSE, Univariate_Plots3}
+str(ld)
+```
+
+#### Information About Variables
+
+```{r ,echo=FALSE, message=FALSE, warning=FALSE, Univariate_Plots4}
+summary(ld)
+```
+
+##### Homeowners
+
+```{r, message=FALSE, warning=FALSE}
+# Set homeowner names from True & False to "Homeowner" & NotHomeowner"
+levels(ld$IsBorrowerHomeowner)[levels(ld$IsBorrowerHomeowner) == 'True'] <- 'Homeowner'
+levels(ld$IsBorrowerHomeowner)[levels(ld$IsBorrowerHomeowner) == "False"] <- 'NotHomeowner'
+```
+
+
+
+```{r, message=FALSE, warning=FALSE}
+# Display Homeowners
+ggplot(ld, aes(ld$IsBorrowerHomeowner)) +
+  geom_histogram(stat = "count", fill = 'orange')
+```
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+table(ld$IsBorrowerHomeowner)
+```
+
+Homeowner and NotHomeowner counts are almost the same. The homeowner category cuts the dataset in half. Later we we will use that in our analysis.
+
+
+
+
+##### The length of the Loan Expressed in Months
+
+```{r, message=FALSE, warning=FALSE}
+# DIsplay the legths of loan payments in months
+ggplot(aes(x = Term), data = ld)+
+  geom_histogram(binwidth = 1, fill = I('#005b96')) +
+  scale_x_continuous(breaks = seq(0,60,12))
+```
+
+```{r, message=FALSE, warning=FALSE}
+# Display the legths of loan payments in years
+ggplot(aes(x = Term/12), data = ld)+
+  geom_histogram(binwidth = 1, fill = I('#005b96')) +
+  scale_x_continuous(breaks = seq(1,5,2)) +
+  xlab("Term in Years")
+
+```
+
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+table(ld$Term)
+```
+
+
+All the borrowing terms are either 12, 36 or 60 months.
+Most of the terms are 3 years (90,000), many of them are 5 years (25,000) and a few are 1 year (1,500).
+
+
+
+#### Borrower's Interest Rate
+
+```{r, message=FALSE, warning=FALSE}
+# Display interest rate
+ggplot(aes(BorrowerRate), data =ld) +
+  geom_histogram(binwidth = .01, fill = 'black', color = 'darkred') +
+  scale_x_continuous(breaks = seq(0,.5,.05)) +
+  xlab('Interest Rate')
+```
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+summary(ld$BorrowerRate)
+```
+
+The interest rates are between 0 and 0.5
+Most of the loans have interest rates between 0.05 and 0.35.
+
+#### Alphabetical Prosper rating
+
+
+```{r, message=FALSE, warning=FALSE}
+# Order ProsperRating(alpha) levels from the best rating to the lowest.
+ld$ProsperRating..Alpha. <- ordered(ld$ProsperRating..Alpha., levels = c("", "AA", "A", "B", "C", "D", "E", "HR"))
+```
+
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+# dont display this output
+levels(ld$ProsperRating..Alpha.)[1] <- "Unknown"
+```
+
+
+
+
+```{r, message=FALSE, warning=FALSE}
+# Display Prosper ratings
+ggplot(aes(ProsperRating..Alpha.), data = ld) +
+  geom_bar(fill = I('#EB7260'), color = I( '#DD5F32')) +
+  xlab('Prosper Rating (alphabetical)')
+```
+
+We have no prosper rating available for about 30,000 loans. This number of the unknown rating category is even bigger than the number of the largest known rating category.
+Let's get rid of the unknown bin to get a better look at the remaining ones.
+
+
+```{r, message=FALSE, warning=FALSE}
+# Display prosper ratings without unknown data.
+ggplot(aes(ProsperRating..Alpha.), data = ld) +
+  geom_bar(fill = I('#EB7260'), color = I( '#DD5F32'))+
+  scale_x_discrete(limits = c("AA", "A", "B", "C", "D", "E", "HR")) +
+  xlab('Prosper Rating (alphabetical)')
+
+```
+
+As we can see, as we go towards to the middle ranked (C) rating from both sides, the count goes higher too. The x-axis is ordered from the highest rating (AA) to the lowest (HR).
+
+#### Interest Rate Difference Between the Best Rated and the Worst Rated Borrowers
+
+```{r, message=FALSE, warning=FALSE}
+# Best (AA) rated loans
+ggplot(aes(BorrowerRate), data = subset(ld, ProsperRating..Alpha. == 'AA')) +
+  geom_histogram(fill = I('#1d8659')) +
+  scale_x_continuous(breaks = seq(0.05,0.2,0.015))+ 
+  ggtitle('Interest Rates of Highest Prosper Rated Loans')
+```
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+# Subset data by Prosper rating == AA
+ld.by_alpha_AA <- ld %>%
+  subset(ProsperRating..Alpha. == 'AA')
+```
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+dim(ld.by_alpha_AA)
+```
+
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+#display Prosper Rating AA summary
+summary(ld.by_alpha_AA$BorrowerRate)
+```
+The highest class in prosper rating is skewed to the right. A borrower with an "AA" rating has a better chance to have a lower interest rate than the mean of its own group's distribution. Most borrowers are between 0.055 and 0.09.
+
+There are 5,400 people in the "AA" class.
+
+```{r, message=FALSE, warning=FALSE}
+# Worst (HR) rated loans
+ggplot(aes(BorrowerRate), data = subset(ld, ProsperRating..Alpha. == 'HR')) +
+  geom_histogram(fill = I('#1d8659'), binwidth = .01) +
+  scale_x_continuous(breaks = seq(0.20,0.35,0.01)) +
+  ggtitle('Interest Rates of Lowest Prosper Rated Loans')
+```
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+# Subset data by Prosper rating == HR
+ld.by_alpha_HR <- ld %>%
+  subset(ProsperRating..Alpha. == 'HR')
+```
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+dim(ld.by_alpha_HR)
+```
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+summary(ld.by_alpha_HR$BorrowerRate)
+```
+This is a left skewed distribution with most borrowers between 0.3 and 0.325. This is a skinnier dataset. It means that the investors don't really differentiate between the people in this group. If someone is a member of this worst rated group, he gets almost the same interest rate like the others in there.
+In this group, borrowers have to pay significantly higher interest rates. The difference between the medians of these two ranked groups is very huge. The worst ranked class has four times bigger median interest rate than the best ranked class does.
+
+
+How do the values spread on this "HR" distribution? My assumption is that there will be only a few rates that have big counts. Let's see.
+
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+table(ld.by_alpha_HR$BorrowerRate)
+```
+
+As i thought, there are a few interest rates concerned with almost everyone in this group.
+For example, 0.3177 interest rate is what almost half of this group pays.
+Let's do some clean up, and remove all the rates from the table that have less than 15 counts:
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+ld.prosperRating_by_worst <- table(ld.by_alpha_HR$BorrowerRate)
+```
+
+```{r}
+subset(ld.prosperRating_by_worst, ld.prosperRating_by_worst >= 15)
+```
+The remaining set of data has 15 unique values! Only 15 separated interest rates have around 6500 counts in sum. And half of has less than 75.
+
+Just to compare with the best rated class, I removed all values containing less than 15 counts:
+
+```{r}
+#make a table with the best rated ProsperRating unique value counts
+ld.prosperRating_AA_table <- table(ld.by_alpha_AA$BorrowerRate)
+```
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+subset(ld.prosperRating_AA_table, ld.prosperRating_AA_table >=15)
+```
+As we can see the distribution is much more separated, there are a lot more unique numbers in the best rated group. Therefore, there are more variables that can influence your interest rate in this distribution. So the prosper rate itself is not enough to tell within a small range what will be your interest rate. But in the lowest rated distribution it seems like it is rare, to get another rate than that very skinny range of values where 90% of the borrowers can be found. 
+
+
+
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+ld$ListingCategory..numeric. <- mapvalues(ld$ListingCategory..numeric.,
+                                          from = c(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20),
+                                          to = c('Not Available',
+                                                 'Debt Consolidation',
+                                                 'Home Improvement',
+                                                 'Business',
+                                                 'Personal Loan',
+                                                 "Student Use",
+                                                 "Auto",
+                                                 "Other",
+                                                 "Baby&Adoption",
+                                                 "Boat",
+                                                 "Cosmetic Procedure",
+                                                 "Engagement Ring",
+                                                 "Green Loans",
+                                                 "Household Expenses",
+                                                 "Large Purchases",
+                                                 "Medical/Dental",
+                                                 "Motorcycle",
+                                                 "RV",
+                                                 "Taxes",
+                                                 "Vacation",
+                                                 "Wedding Loans"))
+```
+
+#### Category
+
+```{r, message=FALSE, warning=FALSE}
+#Display Loan Categories
+ggplot(aes(ListingCategory..numeric.), data = ld) +
+  geom_bar(fill = I('#160A47'), color = 'darkblue') +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) +
+  xlab('Category')
+```
+
+Because this is a categorical, unordered distribution, we can not tell the shape of the distribution, because it does not make any sense. We can always transpose their bins to play with the shape of the distribution.
+As seeing this bar chart we can see that there are a lot of unknown data, around 17,000. I'll remove this from the chart, because it does not give any useful information for me right now.
+And there is a very high column which is ruining the chart, called "Debt Consolidation". I have to transform this chart somehow to get a better look at the lower data. Logarithm would be a good choice because the wide number range, but first let's look at the counts.
+
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+The_table <- table(ld$ListingCategory..numeric.)
+The_table
+```
+
+These category counts are separated in high range. There are a few counted data like "Green Loans", and high counted, like "Home Improvement". First let's apply a logarithm transformation, because the square root will not give a good view in this wide number range.
+
+We can apply the logarithm transformation, because every number is bigger than one!
+The problem with 0 values is they have no logarithm. And logarithm one is zero, so if we have a 1 counted category, it will display 0. This is why we have to be sure of this. We always have to check this condition.
+
+So let's apply a transformation and reorder the X-axis to have a better looking shape of the data. And make the visualization a little bit bigger for a better view
+
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+# transform 1D array into data frame
+listing_category_df <- as.data.frame(The_table)
+```
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+#rename Var1 to Category where the categories are stored.
+names(listing_category_df)[1] <- 'Category'
+```
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+# Delete 'not available' row.
+listing_category_df <- listing_category_df[!(listing_category_df$Category == 'Not Available'),]
+```
+
+
+
+
+```{r Fig1, fig.height=6, message=FALSE, warning=FALSE}
+#Display Loan Categories without unknow data with reordered bins
+ggplot(aes(x = reorder(Category , Freq), y = Freq),
+       data = subset(listing_category_df, Category != 'Not Available')) +
+  geom_bar(stat = 'identity' ,fill = I('#160A47'), color = I('darkblue')) +
+  scale_y_log10(breaks = c(0,10,50,100,250,500,1000,2000,5000,10000,60000)) +
+  coord_cartesian(ylim = c(1,60000)) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1))  +
+  xlab('Category')
+```
+
+Perfect! Now we see all the data, all together. Logarithm transformation made a good job here, I won't apply another rescale here. Watching this chart I can see that we can split these categories into 3 groups to better display the count differences between the groups.
+I'm going to give names to these groups for an easier reference in the future if it's needed, and also because we get a better, more precise groups.
+
+1) Low Counted (RV-Motorcycle)
+2) Medium Counted  (Student Use - Auto)
+3) High Counted (Business - Debt Consolidation)
+
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+#Making these 3 groups
+
+low_counted_group.df <- subset(listing_category_df, listing_category_df$Freq <500)
+medium_counted_group.df <- subset(listing_category_df, listing_category_df$Freq >=500 & listing_category_df$Freq < 5000)
+high_counted_group.df <- subset(listing_category_df, listing_category_df$Freq >= 5000)
+```
+
+```{r, message=FALSE, warning=FALSE}
+# Display low counted categories (RV-Motorcycle)
+ggplot(low_counted_group.df, aes(Category, Freq)) +
+  geom_bar(stat = 'Identity' ,fill = I('#160A47'), color = I('darkblue')) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) +
+  ggtitle('Low Counted Categories')
+```
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+low_counted_group.df
+```
+These categories are very unpopular choices for borrowers.
+
+```{r, message=FALSE, warning=FALSE}
+# Display medium counted categories (Student Use - Auto)
+ggplot(medium_counted_group.df, aes(Category, Freq)) +
+  geom_bar(stat = 'Identity',fill = I('#160A47'), color = I('darkblue'))+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) +
+  ggtitle('Medium Counted Categories')
+```
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+medium_counted_group.df
+```
+These are the categories that borrowers will most likely choose if they are not picking from the High Counted Categories.
+
+
+```{r, message=FALSE, warning=FALSE}
+# DIsplay high counted categories (Business - Debt Consolidation)
+ggplot(high_counted_group.df, aes(Category, Freq)) +
+  geom_bar(stat = 'Identity',fill = I('#160A47'), color = I('darkblue')) +
+  theme(axis.text.x = element_text(angle = 45, vjust = 1, hjust = 1)) +
+  ggtitle('High Counted Categories')
+```
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+high_counted_group.df
+```
+
+The borrowers are most likely to pick a category from these 4.
+
+What are the low-, medium- and high rated proportions of the categories? Of course I will remove the unknown data from the algorithm. It is very important, because if I would count them in, the sum of the proportions will not be 1.
+
+Let's see the proportions.
+
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+# Sum all frequencies
+all_count <- sum(listing_category_df$Freq)
+
+low_counted.sum <- sum(low_counted_group.df$Freq)
+medium_counted.sum <- sum(medium_counted_group.df$Freq)
+high_counted.sum <- sum(high_counted_group.df$Freq)
+```
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+category_sums <- data.frame(c("Low", "Medium", "High"), c(low_counted.sum, medium_counted.sum, high_counted.sum))
+```
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+names(category_sums)[1] <- 'Category'
+names(category_sums)[2] <- 'Freq'
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+# Category proportion
+ggplot(category_sums, aes(x =reorder(Category, - Freq), y =Freq/all_count)) +
+  geom_bar(stat = 'Identity', fill = I('#160A47')) +
+  xlab('Category')
+```
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+category_proportions <- c(low_counted.sum, medium_counted.sum, high_counted.sum)
+category_proportions <- category_proportions/all_count
+
+category_proportions
+```
+
+Just as I thought. "High" is very far from the rest of the data, roughly seven times the size of the "Medium". The "Low" almost disappears next to the other categorical groups, but it still has around 1% slice from the loan data set. So every 100th borrower choose from those categories that the "Low" group contains. So there is 1% chance to choose from the "Low" groups which consists of 7 categories from the 20. Small, right? Third of the categories with sum of 1%. Almost nothing.
+
+
+
+#### Monthly Income
+```{r, message=FALSE, warning=FALSE}
+# Display monthly income
+ggplot(aes(StatedMonthlyIncome), data = ld) +
+  geom_histogram(fill = I('#000000')) +
+  xlab('Monthly Income')
+```
+
+Well, there is one peak on the left but nothing more in the whole system.
+But why is there a 1,500,000 monthly income in the x axis? Does someone really has that much income? What is the scale for these income numbers?
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+range(ld$StatedMonthlyIncome)
+```
+The maximum monthly income is 1,750,003. This completely ruins our chart. Is this real? Can it be a measurement mistake? Maybe a billionaire has this much income. Anyway, I am not going to care about this data. I am going to add a maximum scale, a 99 % quantile. This will hopefully make a lot skinnier scale, to see the other counts.
+
+
+
+```{r, message=FALSE, warning=FALSE}
+# Display monthly income with a 99% quantile
+ggplot(aes(StatedMonthlyIncome), data = ld) +
+  geom_histogram(binwidth = 500, fill = I('#000000')) +
+  scale_x_continuous(limits = c(0, quantile(ld$StatedMonthlyIncome, .99))) +
+  xlab('Monthly Income')
+```
+
+Here it is! Looks better. This is a positively skewed distribution just as everyone expected it.
+
+I expect that there are incomes that has way more counts than others. Like the very rounded numbers, for example 5000, 2500, 1000, et cetera.
+
+
+```{r, message=FALSE, warning=FALSE}
+# Display monthly income with a 99% quantile and smaller bin numbers
+ggplot(aes(x = StatedMonthlyIncome), data = ld) +
+  geom_histogram(binwidth = 100, fill = I('#000000')) +
+  scale_x_continuous(limits = c(0, quantile(ld$StatedMonthlyIncome, .99))) +
+  xlab('Monthly Income')
+```
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+# make a table out of this data
+ld.by_monthly_income_tb <- table(ld$StatedMonthlyIncome)
+```
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+subset(ld.by_monthly_income_tb, ld.by_monthly_income_tb>2000)
+```
+
+As I expected. I Listed those values where the borrower count is more than 2,000. I think values like 2500, 3750, 5000, 6250 comes from when the employee and the employer make a deal about his gross payment. They will not say that, let it be 4,996 or 4,984. They will make it 5,000. The rest comes from the net payment. For example they make it net 2000, but maybe before taxes may have been 3333 or 4166. It makes sense. The same system works on the gross and on the net income.
+
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+# Convert the table into a dataframe
+ld.by_monthly_income_df <- as.data.frame(ld.by_monthly_income_tb)
+names(ld.by_monthly_income_df)[1] <- 'Income'
+```
+
+
+
+#### Monthly Loan Payment
+
+```{r, message=FALSE, warning=FALSE}
+#Display monthly loan payment
+ggplot(aes(MonthlyLoanPayment), data = ld) +
+  geom_histogram(color = I('#ff1a8c'), fill = I('#660066')) +
+  xlab('Monthly Loan Payment')
+```
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+summary(ld$MonthlyLoanPayment)
+```
+Positively skewed dataset. Nothing special. People rarely pay more than 1,000 in a month. Most of the data is below 220.Half of the data is between 131 and 372. I am going to scale the x axis from 0 to 1,000.
+
+```{r, message=FALSE, warning=FALSE}
+#Display monthly loan payment & Rescale to 1,000
+ggplot(aes(x = MonthlyLoanPayment), data = ld) +
+  geom_histogram(color = I('#ff1a8c'), fill = I('#660066'), binwidth = 25) +
+  scale_x_continuous(breaks = seq(0,1000,50), limits = c(0,1000)) +
+  xlim(0,1000) +
+  xlab('Monthly Loan Payment')
+```
+
+From 0 to 175 increasing, and then decreasing till 750. There is a little peak around 850, and then it is going to be almost nothing.
+After 400 it suddenly falls to the half of the previous height. From the statistical numbers, half of the people is at 217, so most people stand before 220. But from the shape of the chart it is maybe better to say that the monthly amount of payment is popular until 400.
+
+
+#### Borrowed Amount of Loan
+```{r, message=FALSE, warning=FALSE}
+# Display borrowed loan
+ggplot(aes(LoanOriginalAmount), data = ld) +
+  geom_histogram(fill = I('#00ba4a'), color =I('#aa0052'), binwidth = 1000) +
+  scale_x_continuous(breaks = seq(0,35000,5000)) +
+  xlab('Amount of Loan')
+```
+
+The shape of this distribution is positively skewed again. I explained previously the reason for the growing bins from the rounded numbers. People like to borrow monstly rounded numbers. Like 5,000, 10,000, 15,000, et cetera. To prove this, let's change the bin's width to a skinnier one.
+
+```{r, message=FALSE, warning=FALSE}
+# Display borrowed loan and 100 bin width
+ggplot(aes(LoanOriginalAmount), data = ld) +
+  geom_histogram(fill = I('#00ba4a'), binwidth = 100) +
+  scale_x_continuous(breaks = seq(0,35000,5000)) +
+  xlab('Amount of Loan')
+```
+
+There it is! As I expected, they grow out from those numbers. I made a mistake, the first one is not 5,000 but rather 4,000. I think those sequentially grow out, the sequential number is 1,000 or 500. Let's prove these statements with real numbers! I will list values with counts greater than or equal to 2,000.
+
+```{r}
+ld.by_monthly_payment.tb <- table(ld$LoanOriginalAmount)
+```
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+subset(ld.by_monthly_payment.tb, ld.by_monthly_payment.tb>=2000)
+```
+So what we can tell is, people borrow very rounded numbers. From 1,000 to 5,000 the biggest step size is 1,000, the smallest is 500. 4,000 borrower count is way more than 5,000. Maybe they think 5,000 is too much money to borrow, let's borrow only 4,000. Even if they need more, they just can't risk not being able to pay it back. Very few people borrow 4,500, maybe because it is too close to 5000 or 4000 and people that, it is that close to 4-5,000, maybe they should go for the 4,000 or the 5,000. And they just rethink that 5,000 is too much, 4,500 is not that far from it, and maybe it is much too. So let's go back to 4,000, it is safer.
+
+From 5,000 to 10,000 step size is a 1,000. They are not going for the X,500. They like rounded numbers. 9,000 is too low. Who borrow  10,000 possibly have more money, so they can go for the 10,000. It is a nicer number.
+7,500 is also a nice number, from 10,000 to 35,000 the step size is 5,000. Anyone who borrow from that range won't just go for, let's say 32,000, they will go for 30,000 or 35,000.
+
+#### Current Delinquent Days
+
+```{r, message=FALSE, warning=FALSE}
+# Display delinquent days
+ggplot(aes(ld$LoanCurrentDaysDelinquent), data = ld) +
+  geom_histogram( fill =I('#00e6b8')) +
+  ggtitle("Count of Delinquent Days") +
+  xlab("Delinquent Days")
+```
+
+100,000 counted column at the start destroys our chart. Let's examine what it is.
+
+
+```{r, message=FALSE, warning=FALSE}
+# Display delinquent days and rescale
+ggplot(aes(ld$LoanCurrentDaysDelinquent), data = ld) +
+  geom_histogram(binwidth = 1,  fill =I('#00e6b8')) +
+  scale_x_continuous(limits = c(-1,100)) +
+  xlab("Delinquent Days")
+```
+
+It is a zero. from 110,000 people, 90,000 pays his debt in time. Very good.
+We should not bother ourselves, just delete it from the chart to see the others.
+
+```{r, message=FALSE, warning=FALSE}
+# Display delinquent days without zero
+ggplot(aes(ld$LoanCurrentDaysDelinquent), data = ld) +
+  geom_histogram(binwidth = 10,  fill =I('#00e6b8')) +
+  scale_x_continuous(limits = c(1,2500)) +
+  xlab("Delinquent Days")
+```
+
+There are 2 peaks in the data. One at the beginning, and one around 2,000. We can split our data set into two parts. [1;1000] & ]1000;2500].
+
+```{r, message=FALSE, warning=FALSE}
+# Display delinquent days from 1 to 1,000
+ggplot(aes(ld$LoanCurrentDaysDelinquent), data = ld) +
+  geom_histogram(binwidth = 10,  fill =I('#00e6b8')) +
+  scale_x_continuous(limits = c(1,1000)) +
+  xlab("Delinquent Days")
+```
+
+There are some who late for a few days, after that it goes back to normal. At ~125 there is one outstanding bin.
+
+```{r, message=FALSE, warning=FALSE}
+# Display delinquent days from 1,001 to 2,500
+ggplot(aes(ld$LoanCurrentDaysDelinquent), data = ld) +
+  geom_histogram(binwidth = 10,  fill =I('#00e6b8')) +
+  scale_x_continuous(limits = c(1001,2500)) +
+  xlab("Delinquent Days")
+```
+
+Something bothers me, are these outstanding bins sequentially repeated? This can be seen in the first part and in the second part I'll examine this later, but first let's find out what is that strange bin at ~125.
+
+```{r, message=FALSE, warning=FALSE}
+# Display delinquent days, investigate outstanding bin at around 125
+ggplot(aes(ld$LoanCurrentDaysDelinquent), data = ld) +
+  geom_histogram(binwidth = 1,  fill =I('#00e6b8')) +
+  scale_x_continuous(limits = c(100,130), breaks = seq(100,130,1)) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) +
+  xlab("Delinquent Days")
+```
+
+It is at 121. What is it? It is a quarter of a year. Maybe after 1 quarter and 1 day they have to pay late charges. So people who don't really have money, wait until the last day.
+
+And now let's examine the sequence.
+
+```{r, message=FALSE, warning=FALSE}
+# Display delinquent days
+#Investigate outstanding bin sequency
+#First year without 0
+ggplot(aes(x =LoanCurrentDaysDelinquent),
+       data = subset(ld, LoanCurrentDaysDelinquent >0)) +
+  geom_histogram(binwidth =1, alpha = 1, fill =I('#00e6b8')) +
+  scale_x_continuous(breaks = seq(0,365,30), limits = c(0,365)) +
+  xlab("Delinquent Days")
+```
+
+Not a really good view, value 121 is too high. Let's zoom in. And it would be better if I would change the chart's opacity value lower to better pair the downsizes to the x axis and also make the chart wider for a more precise examination.
+
+
+
+```{r PlotDays1, fig.width=11, fig.height=8, message=FALSE, warning=FALSE}
+# Display delinquent days
+#Investigate outstanding bin sequency
+#First year without 0
+# Zoom in
+ggplot(aes(x =LoanCurrentDaysDelinquent), data = ld) +
+  geom_histogram(binwidth =1, alpha =.5, fill =I('#00e6b8')) +
+  scale_x_continuous(breaks = seq(0,365,30), limits = c(0,365)) +
+  coord_cartesian(ylim = c(0,30)) +
+  ggtitle('Days Delinquent (First Year)') +
+  xlab("Delinquent Days")
+```
+
+
+It is hard to recognize exactly where the data goes down on the x axis. I do not see any strong sequential in the downsizes. Maybe there is some, but I cannot tell. Let's examine this from 0 to 364 interval in the first six years by apply a division with remainder. Maybe it will refine the chart "curves".
+
+```{r PlotDays3, fig.width=11, fig.height=8, message=FALSE, warning=FALSE}
+# Display delinquent days
+#Investigate outstanding bin sequency
+#6 years (division with remainder)
+# Zoom in
+ggplot(aes(x =LoanCurrentDaysDelinquent%% 365, y=..count.., fill =..count..),
+       data = subset(ld, LoanCurrentDaysDelinquent > 0 & 
+                       LoanCurrentDaysDelinquent< 2190)) +
+  geom_histogram(binwidth = 1, alpha =.5, fill =I('#00e6b8')) +
+  scale_x_continuous(limits = c(0,364), breaks = seq(0,364,30)) +
+  coord_cartesian(ylim = c(0,75)) +
+  xlab("Delinquent Days")
+```
+
+
+Yes, it made the decreases more clear.
+What i see is that there are decreases after a couple of days from the 30 multiplications.
+I want to be more precise and show them better by changing the x axis scale labels.
+
+
+
+```{r PlotDays4, fig.width= 11, fig.height=8, message=FALSE, warning=FALSE}
+# Display delinquent days
+#Investigate outstanding bin sequency
+#First year without 0
+# Zoom in
+# Rescale x-axis
+ggplot(aes(x =LoanCurrentDaysDelinquent%% 365, y=..count.., fill =..count..),
+       data = subset(ld, LoanCurrentDaysDelinquent > 0 &
+                       LoanCurrentDaysDelinquent< 2190)) +
+  geom_histogram(binwidth = 1, alpha =.5, fill =I('#00e6b8')) +
+  scale_x_continuous(limits = c(0,364), breaks = seq(6,364,30)) +
+  coord_cartesian(ylim = c(0,75)) +
+  xlab("Delinquent Days")
+```
+
+Here it is. We can see the downsizes at the x-axis breaks.
+
+
+
+#### Debt to Income Ratio
+
+```{r, message=FALSE, warning=FALSE}
+# Display Debt to Income Ratio
+ggplot(aes(ld$DebtToIncomeRatio), data = ld)+
+  geom_histogram(fill = I('#862d2d')) +
+  xlab('Debt to Income Ratio')
+```
+
+Wow! someone has 10 times more debt than his income. Thanks for him, we have to rescale the x axis again. Let's do it.
+
+
+```{r, message=FALSE, warning=FALSE}
+# Display Debt to Income Ratio
+# Limit x-axis
+ggplot(aes(ld$DebtToIncomeRatio), data = ld)+
+  geom_histogram(fill = I('#862d2d'), binwidth = .01) +
+  scale_x_continuous(limits = c(0,1), breaks = seq(-.25,1,.25)) +
+  xlab('Debt to Income Ratio')
+```
+
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+summary(ld$DebtToIncomeRatio)
+```
+
+
+What do we have here? A positively skewed distribution. Most of the data is between 0 and 0.5. Median is 0.22, so half of the people pay less than or equal to 22% of their monthly income. That is a very acceptable rate.
+
+
+
+# Univariate Analysis
+
+
+
+### What is the structure of your dataset?
+
+There are 113,837 observations with 82 variables.
+I am not investigating all of the variables, just the important ones from them, like prosper rate, interest rate, "is borrower a homeowner" et cetera. There are categorical, numerical variables. And also date formats, but I will not examine them.
+
+### What is/are the main feature(s) of interest in your dataset?
+
+The main features in this data set are the interest rates, prosper rating and the borrowed loan. I'm sure that prosper rating has an influence to the interest rate. And maybe some other variables, like the amount of the borrowed loan have too.
+
+### What other features in the dataset do you think will help support your \
+investigation into your feature(s) of interest?
+
+My assumption is, the "term" and the "is borrower a homeowner" will help me later.
+
+### Did you create any new variables from existing variables in the dataset?
+
+I changed the "IsBorrowerHomeowner" factors from True and False to "Homeowner" and "NotHomeowner".
+Because it is easier to plot.
+
+### Of the features you investigated, were there any unusual distributions? \
+Did you perform any operations on the data to tidy, adjust, or change the form \
+of the data? If so, why did you do this?
+
+No, I did not.
+
+# Bivariate Plots Section
+
+
+
+# Bivariate Analysis
+
+#### Connection Between Interest Rate & Prosper Rating
+
+```{r, fig.height=12, message=FALSE, warning=FALSE}
+# Interest rate & Prosper ratings
+ggplot(aes(BorrowerRate), data = ld) +
+  geom_histogram(fill = 'black') +
+  facet_wrap(~ProsperRating..Alpha., ncol = 1) +
+  scale_x_continuous(limits = c(0,.4)) +
+  xlab('Interest Rate')
+```
+
+As watching this plot, we can see how the distribution positions move to the right as we go down to a lower rated category.
+Let's compare them in one plot without the unknown data.
+
+
+```{r InterestRatevsPropserRating1, fig.width= 10,message=FALSE, warning=FALSE}
+# Interest rate & Prosper ratings
+ggplot(aes(BorrowerRate), 
+       data = subset(ld, ld$ProsperRating..Alpha. != "Unknown")) +
+  geom_freqpoly(aes(color = ProsperRating..Alpha.), size = 1, binwidth = .01) +
+  scale_x_continuous(limits = c(0,.4)) +
+  xlab('Interest Rate')+
+  labs(color ="Prosper Rating")
+```
+I also removed the Unknown data so it won't be crossing every single distribution and ruin the sight.
+
+
+```{r ,echo=FALSE, message=FALSE, warning=FALSE}
+by(ld$BorrowerRate, ld$ProsperRating..Alpha., summary)
+```
+If we get a better Prosper rating, the lower the Interest rates will be.
+There is an interesting thing about these ratings. From B to HR the maximum interest rate is almost equal. But the 'AA' and 'A' maximum interest rate is way lower than the others.
+HR category is a very thin distribution. Q1 is 0.3134, Q3 is 0.3177. So 50% of the data is between this two numbers, with range of only 0.0043.
+Let's show this statistical data in a plot.
+
+```{r, message=FALSE, warning=FALSE}
+# Interest rate & Proper rating
+ggplot(subset(ld, ld$ProsperRating..Alpha. != "Unknown"),
+       aes(ProsperRating..Alpha., BorrowerRate)) +
+  geom_boxplot() +
+  ylab('Interest Rate')
+```
+
+This plot describes the tendency very well. Median, Q1 and Q3 grow every time. More outlier goes up than down until D where it changes this routine into its opposite direction. This shows us very well, how thin the HR category is.
+
+#### Monthly Income Vs Loan Payment
+
+```{r, message=FALSE, warning=FALSE}
+# Monthly Income & monthly Loan Payment
+ggplot(ld, aes(ld$StatedMonthlyIncome, ld$MonthlyLoanPayment)) +
+  geom_point() +
+  ylab("Monthly Loan Payment") +
+  xlab("Monthly Income")
+```
+
+There are few values really far from others. Let's add a limit to the x-axis, to see that group on the left.
+
+```{r, message=FALSE, warning=FALSE}
+# Monthly Income & monthly Loan Payment
+# Limit x axis
+ggplot(ld, aes(ld$StatedMonthlyIncome, ld$MonthlyLoanPayment)) +
+  geom_point() +
+  scale_x_continuous(limits = c(0,15000)) +
+  ylim(c(0,1000)) +
+  ylab("Monthly Loan Payment") +
+  xlab("Monthly Income")
+```
+
+Interesting. Why is there 2 groups on the plot(one big in the middle and one upwards)? Maybe later i will get an answer for this by adding some other variables to the plot. But first to get a better idea about the values, change the alpha level.
+
+```{r, message=FALSE, warning=FALSE}
+# Monthly Income & monthly Loan Payment
+# Limit x axis
+# Lower alpha level
+ggplot(ld, aes(ld$StatedMonthlyIncome, ld$MonthlyLoanPayment)) +
+  geom_point(alpha = 1/30) +
+  scale_x_continuous(limits = c(0,15000)) +
+  ylim(c(0,1000)) +
+  ylab("Monthly Loan Payment") +
+  xlab("Monthly Income")
+```
+
+There is a stairway looking growth between Income and Debt Payment. As income grows, occasionally debt payment grows too. There is not a strong relationship in the plot, let's see what the correlation is.
+
+
+```{r ,echo=FALSE, message=FALSE, warning=FALSE}
+cor.test(ld$StatedMonthlyIncome, ld$MonthlyLoanPayment)
+```
+
+
+#### Borrowed Money and Monthly Loan Payment
+
+```{r, message=FALSE, warning=FALSE}
+#  Borrowed Money and Monthly Loan Payment
+ggplot(ld, aes(ld$LoanOriginalAmount, ld$MonthlyLoanPayment)) +
+  geom_point() +
+  ylab("Monthly Loan Payment") +
+  xlab("Amount of Loan")
+```
+
+```{r, message=FALSE, warning=FALSE}
+# Borrowed Money and Monthly Loan Payment
+# change alpha level
+ggplot(ld, aes(ld$LoanOriginalAmount, ld$MonthlyLoanPayment)) +
+  geom_point(alpha =1/60) +
+  xlim(c(0,25000)) +
+  ylim(c(0,1250)) +
+  ylab("Monthly Loan Payment") +
+  xlab("Amount of Loan")
+```
+
+I see 3 trend lines in the plot. Two of them just little differ from each other, the third one is way higher. I remember, there was 3 terms, telling how much time it takes to pay back the loan. 1,3,5 years. I'm pretty sure these 3 trend lines are connected to these terms. Later, I am going to examine this idea by adding the "Term" variable to the plot.
+
+```{r ,echo=FALSE, message=FALSE, warning=FALSE}
+cor.test(ld$LoanOriginalAmount, ld$MonthlyLoanPayment)
+```
+
+There is a really strong relationship between the two variables. As the borrowed amount of loan grows, the monthly payment grows too.
+
+
+#### Interest Rate and Borrowed Money
+
+```{r, message=FALSE, warning=FALSE}
+# Interest Rate and Borrowed Money
+ggplot(ld, aes(ld$BorrowerRate, ld$LoanOriginalAmount)) +
+  geom_point() +
+  ylab("Amount of Loan") +
+  xlab("Interest Rate")
+```
+```{r, message=FALSE, warning=FALSE}
+# Interest Rate and Borrowed Money
+# Change alpha level
+ggplot(ld, aes(ld$BorrowerRate, ld$LoanOriginalAmount)) +
+  geom_point(alpha = 1/30) +
+  ylab("Amount of Loan") +
+  xlab("Interest Rate")
+```
+
+```{r, message=FALSE, warning=FALSE}
+# Interest Rate and Borrowed Money
+# Change alpha level
+# Limit x
+ggplot(ld, aes(ld$BorrowerRate, ld$LoanOriginalAmount)) +
+  geom_point(alpha = 1/25) +
+  xlim(c(0.05,0.35)) +
+  ylim(c(0,25000)) +
+  ylab("Amount of Loan") +
+  xlab("Interest Rate")
+```
+
+People get money in a high range of interest rate. This plot will be interesting when I'll add the prosper rating variable. We already know that, borrowers in a lower rated prosper going to get loan with bigger interest rate.
+I can barely see the main shape of the dataset, let's add the median to the dataset.
+
+```{r, message=FALSE, warning=FALSE}
+# Interest Rate and Borrowed Money
+# Change alpha level
+# Limits x
+# Statistical curves
+ggplot(ld, aes(ld$BorrowerRate, ld$LoanOriginalAmount)) +
+  geom_point(alpha = 1/25) +
+  xlim(c(0.05,0.35)) +
+  ylim(c(0,25000)) +
+  geom_line(stat = 'summary', fun.y = median, color = "blue", alpha = 0.5) +
+  geom_smooth(color = 'red') +
+  ylab("Amount of Loan") +
+  xlab("Interest Rate")
+```
+
+Blue line is the median. Red line removes the "noises" from the dataset, so it is not jumping like the median's line.
+
+
+```{r, echo= FALSE, message=FALSE, warning=FALSE}
+cor.test(ld$BorrowerRate, ld$LoanOriginalAmount)
+```
+There is a small, but meaningful correlation between the variables. As Amount of the loan grows, the Interest Rate decreases.
+
+
+#### Prosper Rating and Borrowed Loan
+
+```{r, message=FALSE, warning=FALSE}
+# Prosper Rating and Borrowed Loan
+# Without unknown prosper rating
+ggplot(subset(ld, ld$ProsperRating..Alpha. != 'Unknown'), aes(ProsperRating..Alpha., LoanOriginalAmount)) +
+  geom_boxplot() +
+  ylab("Amount of Loan") +
+  xlab("Proper Rating")
+```
+
+```{r ,echo=FALSE, message=FALSE, warning=FALSE}
+ld_prosper_rationg_without_unknown <- ld[ld$ProsperRating..Alpha. != 'Unknown',]
+ld_prosper_rationg_without_unknown$ProsperRating..Alpha. = droplevels(ld_prosper_rationg_without_unknown$ProsperRating..Alpha.)
+#ld_prosper_rationg_without_unknown$ProsperRating..Alpha. <- factor("AA", "A", "B", "C", "D", "E", "HR")
+```
+
+
+
+```{r ,echo=FALSE, message=FALSE, warning=FALSE}
+by(ld_prosper_rationg_without_unknown$LoanOriginalAmount, ld_prosper_rationg_without_unknown$ProsperRating..Alpha., summary)
+```
+
+People with better prosper rating borrowed more money. It is logical, because someone who has more money, can borrow more, because they can pay back more every month.
+
+There is no big difference between AA, A, B, C in Q1, median and Q3. The difference is seen at the values outside of this area.
+A,B has significantly more outlier values than the other 
+
+D is like a bridge between AA-C & E-HR ratings. D rating's Q3 is around C rating's median, and Q1 is around E rating's median.
+E and HR needed way less money than other ratings.
+
+
+#### Borrowed Loan by Categories
+
+```{r, message=FALSE, warning=FALSE}
+# Borrowed loan # Categories
+ggplot(subset(ld, ld$ListingCategory..numeric. != 'Not Available'),
+       aes(reorder(ListingCategory..numeric., -LoanOriginalAmount, median), 
+           LoanOriginalAmount)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1)) +
+  ylab("Amount of Loan") +
+  xlab("Category")
+```
+
+As we can see, outliers are always above the Q3. I have sorted the boxplots by their medians. There is no huge difference between Q1s for a while from Debt Consolidation to Taxes. In the first categories, there is a higher range in the borrowed money.
+
+Baby$Adobtion takes the second place, but previously we saw that, there is only a few people in that category.
+
+
+#### Interest Rate and Homeowner's connection
+
+
+```{r, message=FALSE, warning=FALSE}
+# Interest Rate & Homeowner
+ggplot(ld, (aes(ld$IsBorrowerHomeowner, ld$BorrowerRate))) +
+  geom_boxplot() +
+  ylab("Interest Rate") +
+  xlab("Is Borrower Homeowner")
+```
+
+```{r ,echo=FALSE, message=FALSE, warning=FALSE}
+by(ld$BorrowerRate, ld$IsBorrowerHomeowner, summary)
+```
+
+As seen, the homeowner borrowers have lower interest rates. Homeowner median is 0.17, while the not homeowner is almost 0.2.
+
+
+#### Times of Delinquencies and Amount of Loan
+
+```{r, message=FALSE, warning=FALSE}
+# Times of Delinquencies & Amount of Loan
+ggplot(ld,aes(x =ld$LoanOriginalAmount, y = ld$DelinquenciesLast7Years)) +
+  geom_point() +
+  ylab("Delinquencies in the Last 7 Years") +
+  xlab("Amount of Loan")
+```
+
+Too much point on the plot. Let's change the alpha level.
+
+```{r, message=FALSE, warning=FALSE}
+ggplot(ld,aes(x =ld$LoanOriginalAmount, y = ld$DelinquenciesLast7Years)) +
+  geom_point(alpha = 1/35) +
+  ylab("Delinquencies in the Last 7 Years") +
+  xlab("Amount of Loan")
+```
+
+Much better. But the points are too small. Let's change the x limits.
+
+
+```{r Amount_and_deliquencies, fig.width= 10, message=FALSE, warning=FALSE}
+ggplot(ld,aes(x =ld$LoanOriginalAmount, y = ld$DelinquenciesLast7Years)) +
+  geom_point(alpha = 1/35, position = position_jitter(width = 100)) +
+  xlim(c(0,25000)) +
+  ylab("Delinquencies in the Last 7 Years") +
+  xlab("Amount of Loan")
+```
+
+There are way more counts than the others at around 2,000, 3000, 4000, 5000, 10,000 et cetera.
+Likely because at those values there are more people who borrowed money. I'll add those counts to the plot later, to see the connection.
+
+
+```{r ,echo=FALSE, message=FALSE, warning=FALSE}
+library('grid')
+```
+
+
+```{r ,echo=FALSE, message=FALSE, warning=FALSE}
+ld.LoanOriginalAmount.tb <- table(ld$LoanOriginalAmount)
+```
+
+```{r ,echo=FALSE, message=FALSE, warning=FALSE}
+ld.LoanOriginalAmount.df <- as.data.frame(ld.LoanOriginalAmount.tb)
+```
+
+```{r ,echo=FALSE, message=FALSE, warning=FALSE}
+names(ld.LoanOriginalAmount.df)[1] <- 'Amount'
+```
+
+
+
+
+### Talk about some of the relationships you observed in this part of the \
+investigation. How did the feature(s) of interest vary with other features in \
+the dataset?
+
+I Have found a relationship between interest rate and prosper rating. Higher ranked prosper rated people have less interest rates.
+
+There is also a connection between the amount of the loan and the monthly payment, a 0.93 correlation coefficient.
+And it seems like there is also a connection with the term variable.
+
+
+If the prosper rating is "HR" we can easily tell what the interest rate will be with a high percentage.
+
+
+### Did you observe any interesting relationships between the other features \
+(not the main feature(s) of interest)?
+
+No, it seems like the variables are connected with the featured ones.
+
+### What was the strongest relationship you found?
+
+The amount of the loan and the monthly payment. There is a really big relationship.
+
+# Multivariate Plots Section
+
+
+
+# Multivariate Analysis
+
+
+#### Borrowed loan with Delinquencies in the Last 7 Years and Borrower Counts.
+
+```{r, fig.width=11, fig.height=8, message=FALSE, warning=FALSE}
+# Amount_and_deliquencies plot with borrowed amount counts
+ggplot(ld, aes(ld$LoanOriginalAmount, ld$DelinquenciesLast7Years)) +
+  geom_point(alpha = 1/35, color = 'red', 
+             position = position_jitter(width = 100)) +
+  geom_line(aes(ld$LoanOriginalAmount, ..count../150), 
+            color = 'blue', stat = 'bin', binwidth = 100, alpha = 0.75) +
+  scale_y_continuous(sec.axis = sec_axis(~. * 150 ,
+                                         name = 'Borrowed amount count')) +
+  theme(axis.text.y = element_text(color = 'red')) +
+  theme(axis.text.y.right = element_text(color = 'blue')) +
+  theme(axis.title.y = element_text(color = 'red')) +
+  theme(axis.title.y.right = element_text(color = 'blue')) +
+  ylab("Delinquencies in the Last 7 Years") +
+  xlab("Amount of Loan")
+```
+
+
+As I thought, the "Borrowed Amount Count" perfectly fits onto the relationship between the loan amount and delinquencies in the last 7 years. This correlates to the connection between the other two.
+
+#### Interest rate, Borrowed Money and Other Categorical Variables
+
+In the second plots I added an 1/25 alpha level.
+
+
+```{r ,echo=FALSE, message=FALSE, warning=FALSE}
+term_colors <- c('Red', 'Blue', 'Green')
+```
+
+
+```{r fig.width = 11, message=FALSE, warning=FALSE}
+# Interest Rate and Borrowed Money & Term length
+ggplot(ld, aes(ld$BorrowerRate, ld$LoanOriginalAmount,
+               color = factor(ld$Term)),) +
+  geom_point(size = 3) +
+  xlim(c(0.05,0.35)) +
+  ylim(c(0,25000)) +
+  guides(col = guide_legend(override.aes = 
+                              list(shape = 15, size = 10, alpha = 1))) +
+  scale_color_manual(values = term_colors) +
+  ylab("Amount of Loan") +
+  xlab("Interest Rate") +
+  labs(color = "Term")
+
+```
+
+
+```{r fig.width = 11, message=FALSE, warning=FALSE}
+# Interest Rate and Borrowed Money & Term length
+ggplot(ld, aes(ld$BorrowerRate, ld$LoanOriginalAmount,
+               color = factor(ld$Term)),) +
+  geom_point(size = 4, alpha = 1/25) +
+  xlim(c(0.05,0.35)) +
+  ylim(c(0,25000)) +
+  guides(col = guide_legend(override.aes = 
+                              list(shape = 15, size = 10, alpha = 1))) +
+  scale_color_manual(values = term_colors) +
+  ylab("Amount of Loan") +
+  xlab("Interest Rate") +
+  labs(color = "Term")
+
+```
+Borrowers with longer payment term and bigger borrowed money often have the same interest rates as the shorter term borrowers with lower loans.
+
+
+```{r ,echo=FALSE, message=FALSE, warning=FALSE}
+prosper_rating_colors <- c('darkred', '#000000', '#DB7E02', '#FCE500', "#6EE200", "#015CA2", "#6D01A8", "#ffffff")
+```
+
+
+```{r fig.width = 11, message=FALSE, warning=FALSE}
+# Interest Rate and Borrowed Money & prosper rating
+ggplot(ld, aes(ld$BorrowerRate, ld$LoanOriginalAmount, 
+               color = ld$ProsperRating..Alpha.)) +
+  geom_point( size = 4) +
+  xlim(c(0.05,0.35)) +
+  ylim(c(0,25000)) +
+  guides(col = guide_legend(override.aes = list(shape = 15, 
+                                                size = 10, alpha = 1))) +
+  scale_color_manual(values = prosper_rating_colors ) +
+  ylab("Amount of Loan") +
+  xlab("Interest Rate") +
+  labs(color = "Prosper Rating")
+```
+
+
+```{r fig.width = 11, message=FALSE, warning=FALSE}
+# Interest Rate and Borrowed Money & prosper rating
+ggplot(ld, aes(ld$BorrowerRate, ld$LoanOriginalAmount, 
+               color = ld$ProsperRating..Alpha.)) +
+  geom_point( size = 4, alpha = 1/25) +
+  xlim(c(0.05,0.35)) +
+  ylim(c(0,25000)) +
+  guides(col = guide_legend(override.aes = list(shape = 15, 
+                                                size = 10, alpha = 1))) +
+  scale_color_manual(values = prosper_rating_colors ) +
+  ylab("Amount of Loan") +
+  xlab("Interest Rate") +
+  labs(color = "Prosper Rating")
+```
+Interesting. Usually it does not really matter how much money do you borrow, because the prosper rating will be the key when they calculate the interest rate at better prosper ratings. In lower prosper ratings it counts more until the HR category.
+
+
+
+```{r ,echo=FALSE, message=FALSE, warning=FALSE}
+is_homeowner_colors <- c("#ff3300", "#3333ff")
+```
+
+
+```{r fig.width = 11, message=FALSE, warning=FALSE}
+# Interest Rate and Borrowed Money & Is Homeowner
+ggplot(ld, aes(ld$BorrowerRate, ld$LoanOriginalAmount, 
+               color = ld$IsBorrowerHomeowner)) +
+  geom_point(size = 4) +
+  xlim(c(0.05,0.35)) +
+  ylim(c(0,25000)) +
+  guides(col = guide_legend(override.aes = list(shape = 15, 
+                                                size = 10, alpha = 1))) +
+  scale_color_manual(values = is_homeowner_colors) +
+  ylab("Amount of Loan") +
+  xlab("Interest Rate") +
+  labs(color = "Is Borrower Homeowner")
+```
+
+
+```{r fig.width = 11, message=FALSE, warning=FALSE}
+# Interest Rate and Borrowed Money & Is Homeowner
+ggplot(ld, aes(ld$BorrowerRate, ld$LoanOriginalAmount, 
+               color = ld$IsBorrowerHomeowner)) +
+  geom_point(size = 4, alpha = 1/25) +
+  xlim(c(0.05,0.35)) +
+  ylim(c(0,25000)) +
+  guides(col = guide_legend(override.aes = list(shape = 15, 
+                                                size = 10, alpha = 1))) +
+  scale_color_manual(values = is_homeowner_colors) +
+  ylab("Amount of Loan") +
+  xlab("Interest Rate") +
+  labs(color = "Is Borrower Homeowner")
+```
+Homeowners are grouping in the left upper corner (lower interest rate, bigger loan), meanwhile the rest of the people are going to the right lower corner (bigger interest rate, lower loan). 
+
+
+#### Amount of Loan, Monthly Loan Payment and Other Categorical Variables
+
+In the second plots I added an 1/75 alpha level.
+
+```{r, fig.width=11, message=FALSE, warning=FALSE}
+#Amount of Loan & Monthly Loan Payment & Term
+ggplot(ld, aes(ld$LoanOriginalAmount, ld$MonthlyLoanPayment,
+               color = factor(ld$Term))) +
+  geom_point(size = 4) +
+  scale_color_manual(values = term_colors) +
+  ylab("Monthly Loan Payment") +
+  xlab("Amount of Loan") +
+  guides(col = guide_legend(override.aes = list(shape = 15, 
+                                                size = 10, alpha = 1))) +
+  labs(color = "Term")
+```
+
+
+```{r, fig.width=11, message=FALSE, warning=FALSE}
+#Amount of Loan & Monthly Loan Payment & Term
+ggplot(ld, aes(ld$LoanOriginalAmount, ld$MonthlyLoanPayment,
+               color = factor(ld$Term))) +
+  geom_point(size = 4, alpha = 1/75) +
+  scale_color_manual(values = term_colors) +
+  ylab("Monthly Loan Payment") +
+  xlab("Amount of Loan") +
+  guides(col = guide_legend(override.aes = list(shape = 15, 
+                                                size = 10, alpha = 1))) +
+  labs(color = "Term")
+```
+We know that, there are 12, 36 and 60 months long terms. It is trivial who borrowed money for a longer period paid less every month. But there are some interesting points. How can two 1 year long points be at the bottom of the Y axis at around 12,000?
+
+
+```{r, fig.width=11, message=FALSE, warning=FALSE}
+#Amount of Loan & Monthly Loan Payment & Propser Rating
+ggplot(ld, aes(ld$LoanOriginalAmount, ld$MonthlyLoanPayment,
+               color = ld$ProsperRating..Alpha.)) +
+  geom_point(size = 4) +
+   scale_color_manual(values = prosper_rating_colors ) +
+  ylab("Monthly Loan Payment") +
+  xlab("Amount of Loan") +
+  guides(col = guide_legend(override.aes = list(shape = 15, 
+                                                size = 10, alpha = 1))) +
+  labs(color = "Prosper Rating")
+```
+
+```{r, fig.width=11, message=FALSE, warning=FALSE}
+#Amount of Loan & Monthly Loan Payment & Propser Rating
+ggplot(ld, aes(ld$LoanOriginalAmount, ld$MonthlyLoanPayment,
+               color = ld$ProsperRating..Alpha.)) +
+  geom_point(size = 4, alpha = 1/75) +
+   scale_color_manual(values = prosper_rating_colors ) +
+  ylab("Monthly Loan Payment") +
+  xlab("Amount of Loan") +
+  guides(col = guide_legend(override.aes = list(shape = 15, 
+                                                size = 10, alpha = 1))) +
+  labs(color = "Prosper Rating")
+```
+We still don't know the answer, because we don't have information about the points, next to them (red ones) we see that, they are "A" and "B" rated points. But without knowing the neighbor points, it is hard to tell. But maybe because they have good prosper ratings with a special offer. Like pay back in a year, with a low monthly payment. And if he gets money soon, he can pay back the whole loan then.
+
+From this plot it is seen that most of the missing data comes from the 3 years long term.
+
+```{r, fig.width=11, message=FALSE, warning=FALSE}
+#Amount of Loan & Monthly Loan Payment & IsHomeowner
+ggplot(ld, aes(ld$LoanOriginalAmount, ld$MonthlyLoanPayment,
+               color = ld$IsBorrowerHomeowner)) +
+  geom_point(size = 3)  +
+  scale_color_manual(values = is_homeowner_colors) +
+  ylab("Monthly Loan Payment") +
+  xlab("Amount of Loan") +
+  labs(color = "Is Borrower Homeowner")
+```
+
+
+```{r, fig.width=11, message=FALSE, warning=FALSE}
+#Amount of Loan & Monthly Loan Payment & IsHomeowner
+ggplot(ld, aes(ld$LoanOriginalAmount, ld$MonthlyLoanPayment,
+               color = ld$IsBorrowerHomeowner)) +
+  geom_point(size = 3, alpha = 1/75)  +
+  scale_color_manual(values = is_homeowner_colors) +
+  ylab("Monthly Loan Payment") +
+  xlab("Amount of Loan") +
+  guides(col = guide_legend(override.aes = list(shape = 15, 
+                                              size = 10, alpha = 1))) +
+  labs(color = "Is Borrower Homeowner")
+```
+Homeowners are more likely to go for a 3 or a 5 years long payment terms. People who don't own a home borrow less money than homeowners. 
+
+
+#### Monthly Income & Monthly Loan Payment & Other Categorical Variables
+
+In the second plots I added an 1/50 alpha level.
+
+```{r fig.width= 11, message=FALSE, warning=FALSE}
+# Monthly Income & Monthly Loan Payment & Prosper Rating
+ggplot(ld, aes(ld$StatedMonthlyIncome, ld$MonthlyLoanPayment,
+               color = ld$ProsperRating..Alpha.)) +
+  geom_point(size = 3) +
+  xlim(c(0,50000)) + 
+  scale_colour_manual(values = prosper_rating_colors) +
+  ylab("Monthly Loan Payment") +
+  xlab("Monthly Income") +
+  labs(color = "Prosper Rating")
+```
+
+
+```{r fig.width= 11, message=FALSE, warning=FALSE}
+# Monthly Income & Monthly Loan Payment & Prosper Rating
+ggplot(ld, aes(ld$StatedMonthlyIncome, ld$MonthlyLoanPayment,
+               color = ld$ProsperRating..Alpha.)) +
+  geom_point(size = 3, alpha = 1/50) +
+  xlim(c(0,50000)) + 
+  scale_colour_manual(values = prosper_rating_colors) +
+  ylab("Monthly Loan Payment") +
+  xlab("Monthly Income") +
+  guides(col = guide_legend(override.aes = list(shape = 15, 
+                                              size = 10, alpha = 1))) +
+  labs(color = "Prosper Rating")
+```
+
+
+```{r fig.width= 11, message=FALSE, warning=FALSE}
+# Monthly Income & Monthly Loan Payment & Prosper Rating
+ggplot(ld, aes(ld$StatedMonthlyIncome, ld$MonthlyLoanPayment,
+               color = ld$ProsperRating..Alpha.)) +
+  geom_point(size = 3, alpha = 1/50) +
+  xlim(c(0,20000)) + 
+  ylim(0,1500) +
+  scale_colour_manual(values = prosper_rating_colors) +
+  ylab("Monthly Loan Payment") +
+  xlab("Monthly Income") +
+  guides(col = guide_legend(override.aes = list(shape = 15, 
+                                              size = 10, alpha = 1))) +
+  labs(color = "Prosper Rating")
+```
+
+
+
+Another interesting plot. The best rated people are in the middle of the group. "HR" category has almost the same monthly loan payment for everyone. "A" and "B" categories have wider and higher ranges than others.
+
+
+```{r fig.width= 11, message=FALSE, warning=FALSE}
+# Monthly Income & Monthly Loan Payment & Is Borrower Homeowner
+ggplot(ld, aes(ld$StatedMonthlyIncome, ld$MonthlyLoanPayment,
+               color = ld$IsBorrowerHomeowner)) +
+  geom_point(size = 3) +
+  xlim(c(0,50000)) + 
+  scale_colour_manual(values = is_homeowner_colors) +
+  ylab("Monthly Loan Payment") +
+  xlab("Monthly Income") +
+  labs(color = "Is Borrower Homeowner")
+```
+
+
+
+```{r fig.width= 11, message=FALSE, warning=FALSE}
+# Monthly Income & Monthly Loan Payment & Is Borrower Homeowner
+ggplot(ld, aes(ld$StatedMonthlyIncome, ld$MonthlyLoanPayment,
+               color = ld$IsBorrowerHomeowner)) +
+  geom_point(size = 3, alpha = 1/50) +
+  xlim(c(0,50000)) + 
+  scale_colour_manual(values = is_homeowner_colors) +
+  ylab("Monthly Loan Payment") +
+  xlab("Monthly Income") +
+  guides(col = guide_legend(override.aes = list(shape = 15, 
+                                              size = 10, alpha = 1))) +
+  labs(color = "Is Borrower Homeowner")
+```
+
+
+```{r fig.width= 11, message=FALSE, warning=FALSE}
+# Monthly Income & Monthly Loan Payment & Is Borrower Homeowner
+ggplot(ld, aes(ld$StatedMonthlyIncome, ld$MonthlyLoanPayment,
+               color = ld$IsBorrowerHomeowner)) +
+  geom_point(size = 3, alpha = 1/50) +
+  xlim(c(0,20000)) + 
+  ylim(0,1500) +
+  scale_colour_manual(values = is_homeowner_colors) +
+  ylab("Monthly Loan Payment") +
+  xlab("Monthly Income") +
+  guides(col = guide_legend(override.aes = list(shape = 15, 
+                                              size = 10, alpha = 1))) +
+  labs(color = "Is Borrower Homeowner")
+```
+
+
+Someone who does not own a home is more likely to go for a smaller loan with a lower monthly payment. But home owners are not interested in that, just only a few of them.
+
+```{r fig.width= 11, message=FALSE, warning=FALSE}
+# Monthly Income & Monthly Loan Payment & Term
+ggplot(ld, aes(ld$StatedMonthlyIncome, ld$MonthlyLoanPayment,
+               color = factor(ld$Term))) +
+  geom_point(size = 3) +
+  xlim(c(0,50000)) +
+  scale_color_manual(values = term_colors) +
+  ylab("Monthly Loan Payment") +
+  xlab("Monthly Income") +
+  labs(color = "Term")
+```
+
+
+
+
+
+
+```{r fig.width= 11, message=FALSE, warning=FALSE}
+# Monthly Income & Monthly Loan Payment & Term
+ggplot(ld, aes(ld$StatedMonthlyIncome, ld$MonthlyLoanPayment,
+               color = factor(ld$Term))) +
+  geom_point(size = 3, alpha = 1/50) +
+  xlim(c(0,50000)) +
+  scale_color_manual(values = term_colors) +
+  ylab("Monthly Loan Payment") +
+  xlab("Monthly Income") +
+  guides(col = guide_legend(override.aes = list(shape = 15, 
+                                            size = 10, alpha = 1))) +
+  labs(color = "Term")
+```
+
+
+
+```{r fig.width= 11, message=FALSE, warning=FALSE}
+# Monthly Income & Monthly Loan Payment & Term
+ggplot(ld, aes(ld$StatedMonthlyIncome, ld$MonthlyLoanPayment,
+               color = factor(ld$Term))) +
+  geom_point(size = 3, alpha = 1/50) +
+  xlim(c(0,20000)) +
+  ylim(0,1500) +
+  scale_color_manual(values = term_colors) +
+  ylab("Monthly Loan Payment") +
+  xlab("Monthly Income") +
+  guides(col = guide_legend(override.aes = list(shape = 15, 
+                                            size = 10, alpha = 1))) +
+  labs(color = "Term")
+```
+
+
+1-year long term rules the upper side of the plot. They borrow for higher monthly loan payment. But they are not likely to borrow a big loan. 3-year long term is spreading at the middle. They don't pay too much or too little in a month. 5 years long term is almost everywhere. Except at the upper side of the plot. There are only 1 yearlong terms.
+
+### Talk about some of the relationships you observed in this part of the \
+investigation. Were there features that strengthened each other in terms of \
+looking at your feature(s) of interest?
+
+The "Borrowed Amount Count"  fits onto the relationship between the loan amount
+and delinquencies in the last 7 years.
+
+We can see the layers in the connection of interest rate and loan amount if we add the prosper rating categories.
+It definitely split the dataset by its categories.
+
+There is a really strong relationship between the monthly payment, amount of loan and the term. There are 3 trend lines
+separated by the term variable.
+
+
+
+### Were there any interesting or surprising interactions between features?
+
+The plot where we can see the connections between these 3 variables: Monthly Income, Monthly Loan Payment, and Prosper Rating.
+I would have not expected that how the categorical variable is distributed on the chart. It surprised me.
+------
+
+# Final Plots and Summary
+
+
+
+### Plot One
+```{r echo=FALSE, Plot_One, message=FALSE, warning=FALSE}
+# Display delinquent days
+#Investigate outstanding bin sequency
+#First year without 0
+# Zoom in
+# Rescale x-axis
+ggplot(aes(x =LoanCurrentDaysDelinquent%% 365, y=..count.., fill =..count..),
+       data = subset(ld, LoanCurrentDaysDelinquent > 0 &
+                       LoanCurrentDaysDelinquent< 2190)) +
+  geom_histogram(binwidth = 1, , alpha =.5, fill =I('#00e6b8')) +
+  scale_x_continuous(limits = c(0,364), breaks = seq(6,364,30)) +
+  coord_cartesian(ylim = c(0,75)) +
+  xlab("Delinquent Days") +
+  ylab("Borrowers")+ 
+  ggtitle("First 6 years' Delinquent Days (remainder from division of 365)")
+```
+
+### Description One
+
+This is definitely one of the 3 plots that I would summarize in the end. And here it is why.
+I thought about this plot's structure a lot. How should I find the sequences? I have a lot of work in this.
+I found that from 6 days to 336 days with a 30 step we can see the changes. Less people have delinquency at those times than next to them. It was hard to find. 
+
+
+### Plot Two
+```{r echo=FALSE, Plot_Two, message=FALSE, warning=FALSE}
+ggplot(ld, aes(ld$BorrowerRate, ld$LoanOriginalAmount, 
+               color = ld$ProsperRating..Alpha.)) +
+  geom_point( size = 4, alpha = 1/25) +
+  xlim(c(0.05,0.35)) +
+  ylim(c(0,25000)) +
+  guides(col = guide_legend(override.aes = list(shape = 15, 
+                                                size = 10, alpha = 1))) +
+  scale_color_manual(values = prosper_rating_colors ) +
+  ylab("Amount of Loan") +
+  xlab("Interest Rate") +
+  labs(color = "Prosper Rating")
+```
+
+### Description Two
+
+Here we can see that how the prosper rating splits vertically the plot. As we get a worse rating, we get higher interest rate. And the borrowed money does not really have an influence on this, except in the HR category.
+
+### Plot Three
+```{r echo=FALSE, Plot_Three, message=FALSE, warning=FALSE}
+ggplot(ld, aes(ld$LoanOriginalAmount, ld$MonthlyLoanPayment,
+               color = factor(ld$Term))) +
+  geom_point(size = 4, alpha = 1/75) +
+  scale_color_manual(values = term_colors) +
+  ylab("Monthly Loan Payment") +
+  xlab("Amount of Loan") +
+  guides(col = guide_legend(override.aes = list(shape = 15, 
+                                                size = 10, alpha = 1))) +
+  labs(color = "Term")
+```
+
+### Description Three
+
+This is a good descriptive plot. When you look at it, you just know what is happening. You see the 3 trend lines connected with the term. It says it all. The shortest term has the highest monthly payment as we expected. Nothing strange.
+
+------
+
+# Reflection
+
+I have investigated the relationships between many variables. But this is still a small part of the 81. But at least I think these are the most important variables. In the future we can investigate more of course, but this gives us a lot of information.
+
+It was hard to get the sequences in the delinquencies plot. I thought a lot about it. Playing with the colors, the plots themselves et cetera.  It is good to see now.
+And there were easier plots, like prosper ratings with interest rates. It is trivial that if you are in a bad rated group, you will have bigger interest rate.
+
+There were some information which would have been good to know before hand. Because only from the dataset we can't figure out everything. We can only guess.
+
+It would be interesting to explore some date type variables in the future.
+
+# Sources
+https://eu.udacity.com/
+https://stackoverflow.com/
