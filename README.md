@@ -1,3 +1,3 @@
 # Prosper_Loan_Data
 
-## EDA Project
+## EDA Project (Data Analysis)
